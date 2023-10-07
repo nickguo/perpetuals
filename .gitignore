@@ -9,3 +9,6 @@ test-ledger
 **/yarn.lock
 
 **/.next
+
+.yarn
+.pnp.*

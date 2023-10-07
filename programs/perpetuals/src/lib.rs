@@ -238,4 +238,18 @@ pub mod perpetuals {
     ) -> Result<u64> {
         instructions::get_lp_token_price(ctx, &params)
     }
+
+    pub fn set_custom_oracle_price_permissionless<'info>(
+        ctx: Context<'_, '_, '_, 'info, SetCustomOraclePricePermissionless<'info>>,
+        params: SetCustomOraclePricePermissionlessParams,
+    ) -> Result<()> {
+        instructions::set_custom_oracle_price_permissionless(ctx, &params)
+    }
+
+    pub fn set_permissionless_oracle_pubkey<'info>(
+        ctx: Context<'_, '_, '_, 'info, SetPermissionlessOraclePubkey<'info>>,
+        params: SetPermissionlessOraclePubkeyParams,
+    ) -> Result<u8> {
+        instructions::set_permissionless_oracle_pubkey(ctx, &params)
+    }
 }

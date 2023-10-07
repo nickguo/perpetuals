@@ -135,6 +135,7 @@ pub fn upgrade_custody<'info>(
         permissions: deprecated_custody.permissions,
         fees: deprecated_custody.fees,
         borrow_rate: deprecated_custody.borrow_rate,
+        permissionless_oracle_price_pubkey: deprecated_custody.permissionless_oracle_price_pubkey,
         assets: deprecated_custody.assets,
         collected_fees: deprecated_custody.collected_fees,
         volume_stats: deprecated_custody.volume_stats,

@@ -4,6 +4,7 @@ import { PublicKey, SystemProgram, SYSVAR_RENT_PUBKEY } from "@solana/web3.js";
 import * as spl from "@solana/spl-token";
 import { expect, assert } from "chai";
 import BN from "bn.js";
+import { generateSecp256k1Keypair } from "./cryptography";
 
 describe("perpetuals", () => {
   let tc = new TestClient();
@@ -124,7 +125,7 @@ describe("perpetuals", () => {
     expect(JSON.stringify(pool)).to.equal(JSON.stringify(poolExpected));
 
     await tc.removePool();
-    tc.ensureFails(tc.program.account.pool.fetch(tc.pool.publicKey));
+    await tc.ensureFails(tc.program.account.pool.fetch(tc.pool.publicKey));
 
     await tc.addPool("test pool");
   });
@@ -273,6 +274,7 @@ describe("perpetuals", () => {
         slope2: "120000",
         optimalUtilization: "800000000",
       },
+      permissionlessOraclePricePubkey: null,
       assets: {
         collateral: "0",
         protocolFees: "0",
@@ -348,7 +350,7 @@ describe("perpetuals", () => {
     );
 
     await tc.removeCustody(tc.custodies[1], ratios1);
-    tc.ensureFails(tc.program.account.custody.fetch(tc.custodies[1].custody));
+    await tc.ensureFails(tc.program.account.custody.fetch(tc.custodies[1].custody));
 
     await tc.addCustody(
       tc.custodies[1],
@@ -402,6 +404,50 @@ describe("perpetuals", () => {
       publishTime: oracle.publishTime,
     };
     expect(JSON.stringify(oracle)).to.equal(JSON.stringify(oracleExpected));
+  });
+
+  it("setCustomOraclePricePermissionless", async () => {
+    const [oraclePrivateKey, oraclePublicKey] = generateSecp256k1Keypair();
+    await tc.setPermissionlessOraclePubkey(oraclePublicKey, tc.custodies[0]);
+    await tc.setCustomOraclePricePermissionless(oraclePrivateKey, 500, tc.custodies[0]);
+
+    let oracle = await tc.program.account.customOracle.fetch(
+      tc.custodies[0].oracleAccount
+    );
+    let oracleExpected = {
+      price: new BN(500000),
+      expo: -3,
+      conf: new BN(0),
+      ema: new BN(500000),
+      publishTime: oracle.publishTime,
+    };
+    expect(JSON.stringify(oracle)).to.equal(JSON.stringify(oracleExpected));
+    // after test, set price back to the expected for other test cases.
+    await tc.setCustomOraclePricePermissionless(oraclePrivateKey, 123, tc.custodies[0]);
+  });
+
+  it("setCustomOraclePricePermissionless Errors", async () => {
+    const [oraclePrivateKey, oraclePublicKey] = generateSecp256k1Keypair();
+
+    // Fails if no permissionless oracle update key is set for the custody.
+    await tc.ensureFails(
+      tc.setCustomOraclePricePermissionless(oraclePrivateKey, 100, tc.custodies[1])
+    );
+
+    // Now set the oracle update public key.
+    await tc.setPermissionlessOraclePubkey(oraclePublicKey, tc.custodies[1]);
+
+    // Attempting to update with a stale publishTime should fail.
+    await tc.setCustomOraclePricePermissionless(oraclePrivateKey, 100, tc.custodies[1]);
+    await tc.ensureFails(
+      tc.setCustomOraclePricePermissionless(oraclePrivateKey, 100, tc.custodies[1], 1_000_000)
+    );
+
+    // Attempting to update with a payload signed by an unknown key should fail.
+    const [unknownOraclePrivateKey,] = generateSecp256k1Keypair();
+    await tc.ensureFails(
+      tc.setCustomOraclePricePermissionless(unknownOraclePrivateKey, 100, tc.custodies[1])
+    );
   });
 
   it("setTestTime", async () => {
@@ -527,7 +573,7 @@ describe("perpetuals", () => {
       tc.users[0].positionAccountsLong[0],
       tc.custodies[0]
     );
-    tc.ensureFails(
+    await tc.ensureFails(
       tc.program.account.position.fetch(tc.users[0].positionAccountsLong[0])
     );
   });
@@ -550,7 +596,7 @@ describe("perpetuals", () => {
       tc.users[0].positionAccountsLong[0],
       tc.custodies[0]
     );
-    tc.ensureFails(
+    await tc.ensureFails(
       tc.program.account.position.fetch(tc.users[0].positionAccountsLong[0])
     );
   });

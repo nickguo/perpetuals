@@ -4,6 +4,7 @@ use {
     crate::{error::PerpetualsError, math, state::perpetuals::Perpetuals},
     anchor_lang::prelude::*,
     core::cmp::Ordering,
+    solana_program::{keccak, secp256k1_recover::secp256k1_recover},
 };
 
 const ORACLE_EXPONENT_SCALE: i32 = -9;
@@ -49,6 +50,54 @@ pub struct CustomOracle {
 
 impl CustomOracle {
     pub const LEN: usize = 8 + std::mem::size_of::<CustomOracle>();
+
+    pub fn set(&mut self, price: u64, expo: i32, conf: u64, ema: u64, publish_time: i64) {
+        self.price = price;
+        self.expo = expo;
+        self.conf = conf;
+        self.ema = ema;
+        self.publish_time = publish_time;
+    }
+
+    pub fn verify_signature(
+        &self,
+        custody_account: &Pubkey,
+        signature: [u8; 64],
+        recovery_id: u8,
+        expected_public_key: [u8; 64],
+    ) -> Result<()> {
+        // Verifies the data for this CustomOracle was signed by the expected_public_key.
+        //
+        // This is a 3 step process:
+        //   1. Serialize and keccak hash the representation of this CustomOracle.
+        //   2. Run `secp256k1_recover` to verify the signature and get its public key.
+        //   3. Check that the recovered public key matches the expected.
+        let serialization = self.serialize(custody_account);
+        let hash = {
+            let mut hasher = keccak::Hasher::default();
+            hasher.hash(&serialization);
+            hasher.result().0
+        };
+        let recovered_public_key = secp256k1_recover(&hash, recovery_id, &signature)
+            .map_err(|_| PerpetualsError::PermissionlessOraclePriceUpdateFailed)?;
+        require!(
+            recovered_public_key.to_bytes() == expected_public_key,
+            PerpetualsError::PermissionlessOraclePriceUpdateFailed
+        );
+        Ok(())
+    }
+
+    fn serialize(&self, custody_account: &Pubkey) -> [u8; 68] {
+        let mut buf: [u8; 68] = [0; 68];
+        // The first serialized field is the custody account that this oracle belongs to.
+        buf[0..32].copy_from_slice(&custody_account.to_bytes());
+        buf[32..40].copy_from_slice(&self.price.to_be_bytes());
+        buf[40..44].copy_from_slice(&self.expo.to_be_bytes());
+        buf[44..52].copy_from_slice(&self.conf.to_be_bytes());
+        buf[52..60].copy_from_slice(&self.ema.to_be_bytes());
+        buf[60..68].copy_from_slice(&self.publish_time.to_be_bytes());
+        buf
+    }
 }
 
 impl PartialOrd for OraclePrice {

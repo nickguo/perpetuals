@@ -32,6 +32,8 @@ ahash = "=0.7.6"
 num-traits = "0.2.15"
 num = "0.4.0"
 bytemuck = "1.13.1"
+libsecp256k1 = "0.7.1"
+rand = "0.8.5"
 
 [dev-dependencies]
 solana-program-test = "1.16.9"

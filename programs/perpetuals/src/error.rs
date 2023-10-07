@@ -56,4 +56,6 @@ pub enum PerpetualsError {
     InstructionNotAllowed,
     #[msg("Token utilization limit exceeded")]
     MaxUtilization,
+    #[msg("Signature for permissionless oracle price update failed to verify")]
+    PermissionlessOraclePriceUpdateFailed,
 }

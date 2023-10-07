@@ -34,6 +34,7 @@ pub enum AdminInstruction {
     WithdrawFees,
     WithdrawSolFees,
     SetCustomOraclePrice,
+    SetPermissionlessOraclePubkey,
     SetTestTime,
     UpgradeCustody,
 }

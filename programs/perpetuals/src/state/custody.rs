@@ -141,6 +141,7 @@ pub struct Custody {
     pub permissions: Permissions,
     pub fees: Fees,
     pub borrow_rate: BorrowRateParams,
+    pub permissionless_oracle_price_pubkey: Option<[u8; 64]>,
 
     // dynamic variables
     pub assets: Assets,
@@ -185,6 +186,7 @@ pub struct DeprecatedCustody {
     pub permissions: Permissions,
     pub fees: Fees,
     pub borrow_rate: BorrowRateParams,
+    pub permissionless_oracle_price_pubkey: Option<[u8; 64]>,
 
     // dynamic variables
     pub assets: Assets,

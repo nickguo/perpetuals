@@ -14,6 +14,7 @@ import {
 } from "@solana/web3.js";
 import * as spl from "@solana/spl-token";
 import BN from "bn.js";
+import { secp256k1Sign, generateSecp256k1Keypair } from "./cryptography";
 
 export type PositionSide = "long" | "short";
 
@@ -703,6 +704,94 @@ export class TestClient {
         }
         throw err;
       }
+    }
+  };
+
+  setPermissionlessOraclePubkey = async (oraclePubkey, custody) => {
+    let multisig = await this.program.account.multisig.fetch(
+      this.multisig.publicKey
+    );
+    for (let i = 0; i < multisig.minSignatures; ++i) {
+      try {
+        await this.program.methods
+          .setPermissionlessOraclePubkey({
+            permissionlessOraclePricePubkey: oraclePubkey
+          })
+          .accounts({
+            admin: this.admins[i].publicKey,
+            multisig: this.multisig.publicKey,
+            perpetuals: this.perpetuals.publicKey,
+            pool: this.pool.publicKey,
+            custody: custody.custody,
+            systemProgram: SystemProgram.programId,
+          })
+          .signers([this.admins[i]])
+          .rpc();
+      } catch (err) {
+        if (this.printErrors) {
+          console.log(err);
+        }
+        throw err;
+      }
+    }
+  };
+
+  setCustomOraclePricePermissionless = async (privateKey, numericPrice: number, custody, fixedPublishTime?) => {
+    let user = Keypair.generate();
+
+    let price = new BN(numericPrice * 1000);
+    let expo = -3;
+    let conf =  new BN(0);
+    let ema = new BN(numericPrice * 1000);
+    let publishTime = fixedPublishTime != null ? fixedPublishTime : new BN(this.getTime());
+
+    /* Serialization is 68 bytes. Big-endian to match network format.
+    {
+      custody_account: Pubkey,
+      price: u64,
+      expo: i32,
+      conf: u64,
+      ema: u64,
+      publish_time: i64,
+    }
+    */
+    let buffer = Buffer.alloc(68);
+    buffer.set(custody.custody.toBytes(), 0);
+    buffer.set(price.toArrayLike(Buffer, 'be', 8), 32);
+    // Surprisingly, the no-op bitshift is needed for byte encoding to reflect twos complement.
+    buffer.set(new BN(expo >>> 0).toArrayLike(Buffer, 'be', 4), 40);
+    buffer.set(conf.toArrayLike(Buffer, 'be', 8), 44);
+    buffer.set(ema.toArrayLike(Buffer, 'be', 8), 52);
+    buffer.set(publishTime.toArrayLike(Buffer, 'be', 8), 60);
+
+    const sigObj = secp256k1Sign(privateKey, buffer);
+
+    try {
+      await this.program.methods
+        .setCustomOraclePricePermissionless({
+          price: price,
+          expo: expo,
+          conf: conf,
+          ema: ema,
+          publishTime: publishTime,
+          signature: sigObj.signature,
+          recoveryId: sigObj.recoveryId,
+        })
+        .accounts({
+          user: user.publicKey,
+          perpetuals: this.perpetuals.publicKey,
+          pool: this.pool.publicKey,
+          custody: custody.custody,
+          oracleAccount: custody.oracleAccount,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([user])
+        .rpc();
+    } catch (err) {
+      if (this.printErrors) {
+        console.log(err);
+      }
+      throw err;
     }
   };
 
